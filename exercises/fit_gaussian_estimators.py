@@ -44,20 +44,36 @@ def test_multivariate_gaussian():
     # Question 4 - Draw samples and print fitted model
     m = 1_000
     mu = np.array([0, 0, 4, 0])
-    sigma = np.array([1, .2, 0, .5], [.2, 2, 0, 0], [0, 0, 1, 0], [.5, 0, 0, 1])
+    sigma = np.array([[1, .2, 0, .5], [.2, 2, 0, 0], [0, 0, 1, 0], [.5, 0, 0, 1]])
     X = np.random.multivariate_normal(mean=mu, cov=sigma, size=m)
     fit_X = MultivariateGaussian().fit(X)
     print('Mu_:', fit_X.mu_)
     print('Sigma_:', fit_X.cov_)
 
     # Question 5 - Likelihood evaluation
-    raise NotImplementedError()
 
+    f_1 = np.linspace(-10, 10, 200)
+    f_3 = np.linspace(-10, 10, 200)
+    log_likelihood_matrix = np.zeros((200, 200))
+    # calculate
+    for i, f_1_i in enumerate(f_1):
+        for j, f_3_j in enumerate(f_3):
+            arr = np.array([f_1_i, 0, f_3_j, 0])
+            log_likelihood_matrix[i, j] = MultivariateGaussian.log_likelihood(arr, sigma, X)
+
+    # plot
+    fig2 = go.Figure(go.Heatmap(x=f_1, y=f_3, z=log_likelihood_matrix),
+                     layout=go.Layout(
+                         title=r"$\text{(5) HeatMap of f1 As Function of f2 with the Color being the Log Likelihood}$",
+                         xaxis_title="f3 values", yaxis_title="f1 values"))
+    fig2.show()
     # Question 6 - Maximum likelihood
-    raise NotImplementedError()
+    arg_max_f_1, arg_max_f_3 = np.unravel_index(np.argmax(log_likelihood_matrix), log_likelihood_matrix.shape)
+
+    print(f_1[arg_max_f_1], f_3[arg_max_f_3])
 
 
 if __name__ == '__main__':
     np.random.seed(0)
-    test_univariate_gaussian()
-    # test_multivariate_gaussian()
+    # test_univariate_gaussian()
+    test_multivariate_gaussian()
