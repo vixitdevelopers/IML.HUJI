@@ -203,3 +203,6 @@ class MultivariateGaussian:
         p_2 = (m / 2) * np.log(np.linalg.det(cov))
         p_3 = (np.einsum("ki,ij,jk->", X - mu, np.linalg.inv(cov), np.transpose(X - mu))) / 2
         return -(p_1 + p_2 + p_3)
+
+
+
