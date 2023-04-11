@@ -1,3 +1,4 @@
+import math
 from typing import Tuple
 import numpy as np
 import pandas as pd
@@ -33,7 +34,11 @@ def split_train_test(X: pd.DataFrame, y: pd.Series, train_proportion: float = .7
         Responses of test samples
 
     """
-    raise NotImplementedError()
+    train_x = X.head(math.ceil(train_proportion * X.size))
+    train_y = y.head(math.ceil(train_proportion * y.size))
+    test_x = X.tail(math.ceil((1 - train_proportion) * X.size))
+    test_y = y.tail(math.ceil((1 - train_proportion) * y.size))
+    return train_x, train_y, test_x, test_y
 
 
 def confusion_matrix(a: np.ndarray, b: np.ndarray) -> np.ndarray:
