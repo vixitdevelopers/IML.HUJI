@@ -27,13 +27,32 @@ def preprocess_data(X: pd.DataFrame, y: Optional[pd.Series] = None):
     Post-processed design matrix and response vector (prices) - either as a single
     DataFrame or a Tuple[DataFrame, Series]
     """
+    # add age and age_renovated (which will just be the age if never renovated)
+    X['age'] = X.apply(lambda x: int(x.date[0:4]) - x.yr_built, axis=1)
+    X['age_renovated'] = X.apply(lambda x:
+                                 int(x.date[0:4]) - x.yr_renovated if x.yr_renovated > 0 else x.age, axis=1)
+    # convert date to pandas date_time
+    X['date'] = pd.to_datetime(X['date'], format='%Y%m%dT%H%M%S').dt.date
 
-    # Drop : id
-    # Date -> tsp
-    # Corrlation
+    # keep only first 4 digits of zipcode
+    X['zipcode'] = X['zipcode'].str[:4]
 
-    X.drop_duplicates()
-    X.drop("id", )
+    for col in X.columns:
+        X[col] = X[col].apply(replace_nonsensical_values, args=(col,))
+
+    # create dummy variables from the 'zipcode' column
+
+
+#     todo create dummies
+
+
+def replace_nonsensical_values(x, col_name):
+    if col_name == 'long':
+        if x > 0:
+            return -122  # todo save averages
+    else:
+        if x < 0:
+            return 0  # todo save averages
 
 
 def feature_evaluation(X: pd.DataFrame, y: pd.Series, output_path: str = ".") -> NoReturn:
@@ -83,7 +102,7 @@ if __name__ == '__main__':
     # Then plot average loss as function of training size with error ribbon of size (mean-2*std, mean+2*std)
     for percent in range(10, 101):
         for _ in range(10):
-            X, _, y, _ = split_train_test(train_x, train_y, (percent / 100))
+            X, _, y, _ = split_train_test(train_x, train_y, (percent / 100))  # todo: randomly
             linear_model = LinearRegression()
             linear_model.fit(X, y)
             loss = linear_model.loss(test_x, test_y)
