@@ -74,7 +74,7 @@ if __name__ == '__main__':
     fig = px.bar(loss_df, x='k', y='loss', title='MSE across different k chosen')
     fig.write_image('../poly_loss.png')
 
-    CHOSEN_K = 7
+    CHOSEN_K = 5
 
     # Question 5 - Evaluating fitted model on different countries
     chosen_model = PolynomialFitting(CHOSEN_K)

@@ -34,83 +34,59 @@ def preprocess_data(X: pd.DataFrame, y: Optional[pd.Series] = None):
     global averages, train_columns
 
     X_proc = pd.DataFrame.copy(X)
-
+    X_proc['date'] = pd.to_numeric(X_proc['date'].str[:8], errors='coerce', downcast='integer')
     if y is None:
-        X_proc = X_proc.drop('date', axis=1)
-        for col in X_proc.columns:
-            # if col == 'zipcode':
-            #     X_proc[col] = X_proc[col].replace(np.nan, '98001')
+        for col in X_proc.columns:  # todo zipcode
             X_proc[col] = X_proc[col].replace(np.nan, averages.get(col, 0))
-        # return X_proc
-        # X_proc['date'] = pd.to_numeric(X_proc['date'].str[:8], errors='coerce', downcast='integer')
-        # for col in X_proc.columns:
-        #     X_proc[col] = X_proc[col].apply(replace_nonsensical_values, args=(col,))
+            X_proc[col] = X_proc[col].apply(replace_nonsensical_values, args=(col,))
     else:
         y_proc = pd.DataFrame.copy(y)
         X_proc = X_proc.dropna()
         y_proc = y_proc.loc[X_proc.index]
-        X_proc = X_proc.drop('date', axis=1)
-        # X_proc = X_proc.drop('zipcode', axis=1)
         averages = {col: X_proc[col].mean() for col in X_proc.columns}
-        # return X_proc, y_proc
-        #
-        # X_proc['date'] = pd.to_numeric(X_proc['date'].str[:8])
-        # mask = pd.Series(True, index=X_proc.index)
-        # mask &= X_proc.notna().all(axis=1)
-        # for col in X_proc.columns:
-        #     mask &= sensical_values_indices(X_proc, col)
-        # X_proc = X_proc[mask]
-        # y_proc = y_proc[mask]
+        mask = pd.Series(True, index=X_proc.index)
+        for col in X_proc.columns:
+            mask &= sensical_values_indices(X_proc, col)
+        X_proc = X_proc[mask]
+        y_proc = y_proc[mask]
 
-    # add age and age_renovated (which will just be the age if never renovated)
-    # X_proc['age'] = X_proc.apply(lambda x: int(x.date / 10_000) - x.yr_built, axis=1)
-    # X_proc['age_renovated'] = X_proc.apply(lambda x:
-    #                                        int(x.date / 10_000) - x.yr_renovated if x.yr_renovated > 0 else x.age,
-    #                                        axis=1)
-    # dummies = pd.get_dummies(X_proc['zipcode'], prefix='zipcode_')
-    # dummies['zipcode_other'] = 0
-    # X_proc = X_proc.drop(["id", "lat", "long", "date", "sqft_lot15", "sqft_living15"], axis=1)
-
-    X_proc = X_proc.drop(['long', 'id',
-                          'sqft_lot15'], axis=1)
-
-    # X_proc['zipcode'] = X_proc['zipcode'].astype(int)
-    # X_proc['zipcode'] = X_proc['zipcode'].apply(lambda x: x // 10)
+    X_proc['age'] = X_proc.apply(lambda x: x.date // 10_000 - x.yr_built, axis=1)
+    X_proc['age_renovated'] = X_proc.apply(
+        lambda x: x.age if x.yr_renovated == 0 else x.date // 10_000 - x.yr_renovated, axis=1)
+    # dropping features with low correlation or which we switched:
+    X_proc = X_proc.drop(['date', 'long', 'id', 'lat',
+                          'sqft_lot15', 'yr_renovated', 'yr_built'], axis=1)
+    X_proc['zipcode'] = X_proc['zipcode'].astype(int)
     X_proc = pd.get_dummies(X_proc, prefix='zipcode_', columns=['zipcode'])
 
     if y is None:
         X_proc = X_proc.reindex(columns=train_columns, fill_value=0)
-        #
-        # missing_cols = set(train_columns) - set(X_proc.columns)
-        # for col in missing_cols:
-        #     X_proc[col] = 0
-        # other_cols = set(dummies) - set(train_dummies)
-        # if other_cols:
-        #     dummies['zipcode_other'] = (dummies[other_cols].isin([1]).any(axis=1)).astype(int)
-
-    # X_proc = pd.concat([X_proc, dummies], axis=1)
     else:
-        # train_dummies = dummies
         train_columns = X_proc.columns
         return X_proc, y_proc
     return X_proc[train_columns]
 
 
 def replace_nonsensical_values(x, col_name):
-    global averages, changed_counter
-
+    global averages, train_columns
     if np.isnan(x):
-        changed_counter += 1
-        return averages.get(col_name) if averages.get(col_name) else 0
-
-    if col_name == 'long':
-        if x > 0:
-            changed_counter += 1
-            return averages.get(col_name) if averages.get(col_name) else 0
-    else:
-        if x < 0:
-            changed_counter += 1
-            return averages[col_name] if averages.get(col_name) else 0
+        return averages.get(col_name, 0)
+    if col_name in ['sqft_living', 'sqft_avobe', 'yr_built'] and x <= 0:
+        return averages.get(col_name, 0)
+    if col_name in ['floors', 'sqft_basement', 'yr_renovated'] and x < 0:
+        return averages.get(col_name, 0)
+    if col_name == 'waterfront' and (x < 0 or x > 1):
+        return averages.get(col_name, 0)
+    if col_name == 'condition' and (x < 0 or x > 6):  # todo ceck
+        return averages.get(col_name, 0)
+    if col_name == 'grade' and (x < 0 or x > 16):
+        return averages.get(col_name, 0)
+    if col_name == 'bedrooms' and (x < 0 or x > 20):
+        return averages.get(col_name, 0)
+    if col_name == 'sqft_lot' and (x < 0 or x > 1_250_000):
+        return averages.get(col_name, 0)
+    # if col_name == 'zipcode' and f'zipcode_{x}' not in train_columns:
+    #     return 98003  # this is just a random one
     return x
 
 
@@ -198,20 +174,29 @@ if __name__ == '__main__':
     # #   4) Store average and variance of loss over test set
     # # Then plot average loss as function of training size with error ribbon of size (mean-2*std, mean+2*std)
     #
-    # # losses = np.zeros((len(range(10, 101)), 10))
-    # # for percent in range(losses.shape[0]):
-    # #     print('percent: ', percent + 10)
-    # #     for sample in range(losses.shape[1]):
-    # #         X, y, _, _ = split_train_test(train_x, train_y, ((percent + 10) / 100))
-    # #         linear_model = LinearRegression(include_intercept=True)
-    # #         linear_model.fit(X, y)
-    # #         loss = linear_model.loss(test_x, test_y)
-    # #         losses[percent][sample] = loss
-    # #
-    # # loss_mean, loss_std = losses.mean(axis=1), losses.std(axis=1)
-    # # res = pd.DataFrame({'percent': list(range(10, 101)), 'mean': loss_mean, 'std': loss_std})
-    # # fig = px.scatter(res, x='percent', y='mean')
-    # # fig.write_image('res13.png')
+    losses = np.zeros((len(range(10, 101)), 10))
+    for percent in range(losses.shape[0]):
+        print('percent: ', percent + 10)
+        for sample in range(losses.shape[1]):
+            X, y, _, _ = split_train_test(train_x, train_y, ((percent + 10) / 100))
+            linear_model = LinearRegression(include_intercept=True)
+            linear_model.fit(X, y)
+            loss = linear_model.loss(test_x, test_y)
+            losses[percent][sample] = loss
+
+    loss_mean, loss_std = losses.mean(axis=1), losses.std(axis=1)
+    percent = list(range(10, 101))
+    res = pd.DataFrame({'percent': list(range(10, 101)), 'mean': loss_mean, 'std': loss_std})
+    fig = go.Figure([go.Scatter(x=percent, y=loss_mean, mode="markers+lines", showlegend=False),
+                     go.Scatter(x=percent, y=loss_mean - 2 * loss_std, fill=None, mode='lines',
+                                line=dict(color="lightgrey"), showlegend=False),
+                     go.Scatter(x=percent, y=loss_mean + 2 * loss_std, fill='tonexty', mode='lines',
+                                line=dict(color="lightgrey"), showlegend=False),
+                     ])
+    fig.layout = go.Layout(xaxis='Percentage sampled',
+                           yaxis='MSE',
+                           title='MSE of fitted model as function of percentage of data fitted over')
+    fig.write_image('res34.png')
     #
     #
     #
@@ -233,5 +218,5 @@ if __name__ == '__main__':
                                      xaxis=dict(title="Percentage of Training Set"),
                                      yaxis=dict(title="MSE Over Test Set"),
                                      showlegend=False))
-    fig.write_image("mse.over.training.percentage.png")
+    fig.write_image("res35.png")
     print('finish')
